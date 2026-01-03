@@ -11,8 +11,12 @@
   </style>
 </head>
 <body>
+<div id="jumpscare" style="display:none;position:fixed;inset:0;background:black;z-index:9999;align-items:center;justify-content:center;">
+  <div style="color:red;font-size:48px;font-family:sans-serif;">RUN.</div>
+</div>
 <div id="hint">Something is behind you…</div>
 <div id="ui">
+  <button class="btn" id="flash">🔦</button>
   <button class="btn" id="left">◀</button>
   <button class="btn" id="up">▲</button>
   <button class="btn" id="down">▼</button>
@@ -30,10 +34,17 @@ renderer.setSize(innerWidth, innerHeight);
 document.body.appendChild(renderer.domElement);
 
 // ===== LIGHTING =====
-scene.add(new THREE.AmbientLight(0x222222));
-const light = new THREE.PointLight(0xffffff, 1, 10);
-light.position.set(0,2,0);
-scene.add(light);
+scene.add(new THREE.AmbientLight(0x050505));
+
+// Flashlight (spotlight)
+const flashlight = new THREE.SpotLight(0xffffff, 2, 15, Math.PI / 6, 0.4);
+flashlight.position.set(0, 1.6, 0);
+flashlight.target.position.set(0, 1.6, -1);
+camera.add(flashlight);
+camera.add(flashlight.target);
+scene.add(camera);
+
+let flashlightOn = true;
 
 // ===== FLOOR =====
 const floor = new THREE.Mesh(
@@ -67,6 +78,7 @@ camera.add(listener);
 
 const bgSound = new THREE.Audio(listener);
 const jumpSound = new THREE.Audio(listener);
+const stepSound = new THREE.Audio(listener);
 const audioLoader = new THREE.AudioLoader();
 
 audioLoader.load('https://cdn.pixabay.com/audio/2022/03/15/audio_3c7c7c36a1.mp3', b => {
@@ -81,24 +93,56 @@ audioLoader.load('https://cdn.pixabay.com/audio/2022/10/16/audio_1c1fd3b4a2.mp3'
   jumpSound.setVolume(1);
 });
 
+audioLoader.load('https://cdn.pixabay.com/audio/2022/02/23/audio_4c1e9c6c44.mp3', b => {
+  stepSound.setBuffer(b);
+  stepSound.setVolume(0.5);
+});
+});
+
 // ===== MOVEMENT =====
 const speed = 0.12;
-function move(dx,dz){ camera.position.x += dx; camera.position.z += dz; }
+function move(dx,dz){
+  camera.position.x += dx;
+  camera.position.z += dz;
+  if(!stepSound.isPlaying) stepSound.play();
+}
 left.onclick = ()=>move(-speed,0);
 right.onclick = ()=>move(speed,0);
 up.onclick = ()=>move(0,-speed);
 down.onclick = ()=>move(0,speed);
 
+// Flashlight toggle
+flash.onclick = ()=>{
+  flashlightOn = !flashlightOn;
+  flashlight.intensity = flashlightOn ? 2 : 0;
+};
+
+// ===== LOOK AROUND (TOUCH) =====
+let lastX = null;
+document.addEventListener('touchmove', e => {
+  if(lastX !== null){
+    const dx = e.touches[0].clientX - lastX;
+    camera.rotation.y -= dx * 0.002;
+  }
+  lastX = e.touches[0].clientX;
+});
+document.addEventListener('touchend', ()=> lastX=null);
+
 // ===== GAME LOOP =====
 function animate(){
   requestAnimationFrame(animate);
 
-  // monster follows
   monster.position.x += (camera.position.x - monster.position.x) * 0.01;
   monster.position.z += (camera.position.z - monster.position.z) * 0.01;
 
-  // jumpscare
   if(monster.position.distanceTo(camera.position) < 1.5){
+    if(!jumpSound.isPlaying) jumpSound.play();
+    document.getElementById('jumpscare').style.display = 'flex';
+    setTimeout(()=>location.reload(), 1200);
+  }
+
+  renderer.render(scene, camera);
+}(camera.position) < 1.5){
     if(!jumpSound.isPlaying) jumpSound.play();
     monster.material.color.set(0xff0000);
   }
@@ -113,4 +157,4 @@ window.onresize = ()=>{
   renderer.setSize(innerWidth, innerHeight);
 };
 </script></body>
-  </html>
+</html>
